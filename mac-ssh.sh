@@ -4,7 +4,7 @@ sudo rm -f /usr/local/bin/s
 cat > ~/ssh_tool_color <<'EOF'
 #!/bin/zsh
 # SSH 快捷连接工具 + 彩色菜单/提示
-VERSION="v1.5-color"
+VERSION="v1.6-color"
 SCRIPT_PATH="/usr/local/bin/s"
 UPDATE_URL="https://raw.githubusercontent.com/lg10/mac-ssh/refs/heads/main/mac-ssh.sh"
 
@@ -376,23 +376,36 @@ show_version() {
 }
 
 auto_update() {
-    echo "${BLUE}开始检测最新版本...${NC}"
+    echo "${BLUE}正在检测版本更新...${NC}"
     if ! command -v curl &>/dev/null; then
         echo "${RED}错误：未检测到 curl，无法更新${NC}"
         return 1
     fi
 
-    local tmp_update=$(mktemp)
-    curl -fsSL "$UPDATE_URL" -o "$tmp_update"
-    if [[ ! -s "$tmp_update" ]]; then
-        echo "${RED}错误：下载更新失败，请检查网络/更新地址${NC}"
-        rm -f "$tmp_update"
+    local tmp_file=$(mktemp)
+    # 下载远端脚本
+    curl -fsSL "$UPDATE_URL" -o "$tmp_file"
+    if [[ ! -s "$tmp_file" ]]; then
+        echo "${RED}错误：下载远端脚本失败，请检查网络${NC}"
+        rm -f "$tmp_file"
         return 1
     fi
 
-    sudo cp -f "$tmp_update" "$SCRIPT_PATH"
+    # 提取远端 VERSION 变量值
+    local remote_ver
+    remote_ver=$(grep '^VERSION="' "$tmp_file" | head -n1 | cut -d'"' -f2)
+
+    if [[ "$remote_ver" == "$VERSION" ]]; then
+        echo "${GREEN}✅ 当前已是最新版本($VERSION)，无需更新${NC}"
+        rm -f "$tmp_file"
+        return 0
+    fi
+
+    # 版本不一致，执行更新
+    echo "${YELLOW}发现新版本：$remote_ver，开始更新...${NC}"
+    sudo cp -f "$tmp_file" "$SCRIPT_PATH"
     sudo chmod +x "$SCRIPT_PATH"
-    rm -f "$tmp_update"
+    rm -f "$tmp_file"
     echo "${GREEN}✅ 更新完成，请重新执行 s${NC}"
 }
 
