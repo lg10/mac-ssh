@@ -6,7 +6,7 @@ cat > ~/ssh_tool_color <<'EOF'
 # SSH 快捷连接工具 + 彩色菜单/提示
 VERSION="v1.5-color"
 SCRIPT_PATH="/usr/local/bin/s"
-UPDATE_URL="https://raw.githubusercontent.com/xxx/xxx/main/ssh_tool_fix_all"
+UPDATE_URL="https://raw.githubusercontent.com/lg10/mac-ssh/refs/heads/main/mac-ssh.sh"
 
 # ---------- 颜色定义 ----------
 RED='\033[0;31m'
