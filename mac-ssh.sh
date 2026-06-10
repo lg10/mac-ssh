@@ -1,10 +1,10 @@
-stty sane
 sudo rm -f /usr/local/bin/s
 
 cat > ~/ssh_tool_color <<'EOF'
 #!/bin/zsh
 # SSH 快捷管理工具
 # 首次运行/配置缺失 自动强制写入完整 Host * 全局配置（全套固定规则+心跳保活）
+# 新增：s 别名 直接连接服务器，全程 stty sane 保终端正常
 VERSION="v2.8-final"
 SCRIPT_PATH="/usr/local/bin/s"
 UPDATE_URL="https://raw.githubusercontent.com/lg10/mac-ssh/refs/heads/main/mac-ssh.sh"
@@ -24,6 +24,7 @@ SSH_DIR="$HOME/.ssh"
 KEYS_DIR="$SSH_DIR/keys"
 setopt NO_GLOB_SUBST
 
+# 退出/中断统一恢复终端
 trap 'stty sane; exit' EXIT INT QUIT TERM
 
 # 初始化：目录 + 权限 + 强制补全整套全局 Host * 配置
@@ -62,7 +63,7 @@ init_env() {
             fi
         done < "$SSH_CONFIG"
 
-        # 写入你固定的全套全局配置
+        # 写入固定全套全局配置
         echo "Host *" >> "$tmp"
         echo "    AddKeysToAgent yes" >> "$tmp"
         echo "    UseKeychain yes" >> "$tmp"
@@ -161,6 +162,7 @@ plugin_manager() {
 ssh_wrapper() {
     local host="$1"
     local plugin=$(get_active_plugin)
+    stty sane
     case "$plugin" in
         prismtty)
             exec prismtty -- ssh "$host"
@@ -606,6 +608,7 @@ auto_update() {
 show_help() {
     echo "${CYAN}=== SSH 快捷连接工具 $VERSION ===${NC}"
     echo "${GREEN}s          ${NC}光标选择服务器连接"
+    echo "${GREEN}s 别名     ${NC}直接连接对应别名服务器"
     echo "${GREEN}s -a       ${NC}新增服务器"
     echo "${GREEN}s -e       ${NC}修改服务器"
     echo "${GREEN}s -d       ${NC}删除服务器"
@@ -620,26 +623,47 @@ show_help() {
     echo "特性：首次运行/配置缺失 自动强制补全全套 Host * 全局配置 + 心跳保活"
 }
 
-# 入口
+# ====================== 入口逻辑（核心改造）======================
 init_env
-case "$1" in
-    -a) add_host ;;
-    -e) edit_host ;;
-    -d) del_host ;;
-    -l) list_all ;;
-    -v) view_info "$@" ;;
-    -k) add_key_keychain ;;
-    -p) plugin_manager ;;
-    -ver) show_version ;;
-    -update) auto_update ;;
-    -h) show_help ;;
-    "") cursor_select ;;
-    *) echo "${RED}未知参数，使用 s -h 查看帮助${NC}" ;;
-esac
+# 判断参数：
+# 1. 无参数 → 光标选择列表
+# 2. 首字符为 - → 原有指令分支
+# 3. 不带 - 纯字符串 → 当作服务器别名直接连接
+if [[ -z "$1" ]]; then
+    cursor_select
+elif [[ "$1" == -* ]]; then
+    case "$1" in
+        -a) add_host ;;
+        -e) edit_host ;;
+        -d) del_host ;;
+        -l) list_all ;;
+        -v) view_info "$@" ;;
+        -k) add_key_keychain ;;
+        -p) plugin_manager ;;
+        -ver) show_version ;;
+        -update) auto_update ;;
+        -h) show_help ;;
+        *) echo "${RED}未知参数，使用 s -h 查看帮助${NC}" ;;
+    esac
+else
+    # 纯别名，直接连接服务器
+    local target_host="$1"
+    if ! /usr/bin/grep -E "^[[:space:]]*Host[[:space:]]+$target_host" "$SSH_CONFIG" &>/dev/null; then
+        echo "${RED}错误：服务器别名 [$target_host] 不存在${NC}"
+        exit 1
+    fi
+    start_ssh_agent
+    stty sane
+    echo "${BLUE}正在连接 → ${GREEN}$target_host${NC}"
+    ssh_wrapper "$target_host"
+fi
 EOF
 
 sudo mv ~/ssh_tool_color /usr/local/bin/s
 sudo chmod +x /usr/local/bin/s
 
-echo -e "\n${GREEN}✅ 最终版脚本部署完成！${NC}"
-echo -e "功能：缺任意一条全局配置 → 自动重建完整 Host * 区块"
+echo -e "\n${GREEN}✅ 脚本部署完成！${NC}"
+echo -e "使用方式："
+echo -e "  s              光标选择服务器"
+echo -e "  s 别名         直接连接对应服务器"
+echo -e "  s -h           查看全部帮助"
